@@ -582,10 +582,10 @@ class SearchApiSolrService extends SearchApiAbstractService {
         // Prepare the filter settings.
         if (isset($spatial['radius'])) {
           $radius = (float) $spatial['radius'];
-          $spatial_method = 'geofilt';
-          if (isset($spatial['method']) && in_array($spatial['method'], array('geofilt', 'bbox'))) {
-            $spatial_method = $spatial['method'];
-          }
+        }
+        $spatial_method = 'geofilt';
+        if (isset($spatial['method']) && in_array($spatial['method'], array('geofilt', 'bbox'))) {
+          $spatial_method = $spatial['method'];
         }
 
         // Change the fq facet ranges to the correct fq.
@@ -946,7 +946,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
           $field = $info['field'];
           if (!empty($queries[$field])) {
             foreach ($queries[$field] as $facet) {
-              if ($facet['count'] > $info['min_count']) {
+              if ($facet['count'] >= $info['min_count']) {
                 $facets[$delta][] = $facet;
               }
             }
