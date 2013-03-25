@@ -631,7 +631,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
             }
             $steps = $facet['limit'] > 0 ? $facet['limit'] : 5;
             $step = (isset($radius) ? $radius : 100) / $steps;
-            for ($k = $steps - 1; $k > 0; --$k) {
+            for ($k = $steps; $k > 0; --$k) {
               $distance = $step * $k;
               $key = "spatial-$delta-$distance";
               $facet_params['facet.query'][] = "{!$spatial_method pt=$point sfield=$field d=$distance key=$key}";
