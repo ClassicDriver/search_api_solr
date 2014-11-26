@@ -647,13 +647,42 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
     $offset = isset($options['offset']) ? $options['offset'] : 0;
     $limit = isset($options['limit']) ? $options['limit'] : 1000000;
+    // CD handler for distance calculation
 
+
+
+
+    if($result_radius=$query->getOption('radius')){
+      $result_locations=$query->getOption('geolocation');
+      if(isset($result_radius['d']) && $result_radius['d']!=='' && isset($result_locations['sfield']) && $result_locations['sfield']!=='' && isset($result_locations['pt']) && $result_locations['pt']!=='' && isset($result_locations['fl']) && $result_locations['fl']!==''){
+        $cd_fq=$result_radius['fq'];
+        $fq[]=$cd_fq;
+      }
+    }
     // Collect parameters
     $params = array(
       'fl' => 'item_id,score',
       'qf' => $qf,
       'fq' => $fq,
     );
+    if($result_locations=$query->getOption('geolocation')){
+      if(isset($result_locations['sfield']) && $result_locations['sfield']!=='' && isset($result_locations['pt']) && $result_locations['pt']!=='' && isset($result_locations['fl']) && $result_locations['fl']!==''){
+        $cd_sfield=$result_locations['sfield'];
+        $params['sfield']=$cd_sfield;
+        $cd_pt=$result_locations['pt'];
+        $params['pt']=$cd_pt;
+        $cd_fl=$result_locations['fl'];
+        $params['fl']=$cd_fl.$params['fl'];
+      }
+    }
+    if($result_radius=$query->getOption('radius')){
+     if(isset($result_radius['d']) && $result_radius['d']!=='' && isset($result_locations['sfield']) && $result_locations['sfield']!=='' && isset($result_locations['pt']) && $result_locations['pt']!=='' && isset($result_locations['fl']) && $result_locations['fl']!==''){
+        $cd_d=$result_radius['d'];
+        $params['d']=$cd_d;
+      }
+    }
+
+
     if ($sort) {
       $params['sort'] = implode(', ', $sort);
     }
@@ -760,16 +789,23 @@ class SearchApiSolrService extends SearchApiAbstractService {
     // Add each search result to the results array.
     foreach ($response->response->docs as $doc) {
       // Blank result array.
+
       $result = array(
         'id' => NULL,
         'score' => NULL,
         'fields' => array(),
       );
 
+      if(isset($doc->_dist_)){
+        $cd_dist=$doc->_dist_;
+        $result['dist']=$cd_dist;
+      }
+
       // Extract properties from the Solr document, translating from Solr to
       // Search API property names. This reverses the mapping in
       // SearchApiSolrService::getFieldNames().
       foreach ($fields as $search_api_property => $solr_property) {
+
         if (isset($doc->{$solr_property})) {
           $result['fields'][$search_api_property] = $doc->{$solr_property};
           // Date fields need some special treatment to become valid date values
@@ -787,7 +823,6 @@ class SearchApiSolrService extends SearchApiAbstractService {
       // SearchApiSolrService::getFieldNames().
       $result['id'] = $result['fields']['search_api_item_id'];
       $result['score'] = $result['fields']['search_api_relevance'];
-
       $solr_id = $this->createId($index->machine_name, $result['id']);
       $excerpt = $this->getExcerpt($response, $solr_id, $result['fields'], $fields);
       if ($excerpt) {
@@ -1619,11 +1654,16 @@ class SearchApiSolrService extends SearchApiAbstractService {
       $results['results'] = array();
       $tmp = array();
       foreach ($response->response->docs as $id => $doc) {
+
         $result = array(
           'id' => $doc->item_id,
           'index_id' => $doc->index_id,
           'score' => $doc->score,
         );
+        if(isset($doc->_dist_)){
+          $cd_dist=$doc->_dist_;
+          $result['dist']=$cd_dist;
+        }
         $excerpt = $this->getExcerpt($response, $id, $tmp, array());
         if ($excerpt) {
           $result['excerpt'] = $excerpt;
