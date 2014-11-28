@@ -682,6 +682,12 @@ class SearchApiSolrService extends SearchApiAbstractService {
       }
     }
 
+    if($result_sorting=$query->getOption('sorting')){
+      if(isset($result_sorting['sort']) && $result_sorting['sort']!=='' && isset($result_sorting['order']) && $result_sorting['order']!==''){
+        $params['sort']=$result_sorting['sort'].' '.$result_sorting['order'];
+      }
+    }
+
 
     if ($sort) {
       $params['sort'] = implode(', ', $sort);
