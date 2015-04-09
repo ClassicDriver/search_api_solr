@@ -231,6 +231,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
       'search_api_spellcheck',
       'search_api_data_type_location',
       'search_api_data_type_geohash',
+      'search_api_grouping'
     ));
     return isset($supported[$feature]);
   }
@@ -641,6 +642,32 @@ class SearchApiSolrService extends SearchApiAbstractService {
       }
     }
 
+    // Handle field collapsing / grouping.
+    $field_collapse = $query->getOption('search_api_grouping');
+    if (!empty($field_collapse['collapse'])) {
+      $group_params['group'] = 'true';
+      // We always want the number of groups returned so that we get pagers done
+      // right.
+      $group_params['group.ngroups'] = 'true';
+      if (!empty($field_collapse['truncate'])) {
+        $group_params['group.truncate'] = 'true';
+      }
+      if (!empty($field_collapse['group_facet'])) {
+        $group_params['group.facet'] = 'true';
+      }
+      foreach ($field_collapse['fields'] as $collapse_field) {
+        $group_params['group.field'][] = $fields[$collapse_field];
+      }
+      if (!empty($field_collapse['group_sort']) && isset($fields[$field_collapse['group_sort']])) {
+        $group_sort_direction = isset($field_collapse['group_sort_direction']) ? strtolower($field_collapse['group_sort_direction']) : 'asc';
+        $group_params['group.sort'] = $fields[$field_collapse['group_sort']] . ' ' . $group_sort_direction;
+      }
+      if (!empty($field_collapse['group_limit']) && ($field_collapse['group_limit'] != 1)) {
+        $group_params['group.limit'] = $field_collapse['group_limit'];
+      }
+    }
+
+
     // Set defaults
     if (!$keys) {
       $keys = NULL;
@@ -710,12 +737,16 @@ class SearchApiSolrService extends SearchApiAbstractService {
     if (!empty($this->options['retrieve_data'])) {
       $params['fl'] = '*,score';
     }
+    if (!empty($group_params)) {
+      $params += $group_params;
+    }
     $call_args = array(
-      'query'  => &$keys,
+      'query' => &$keys,
       'offset' => &$offset,
-      'limit'  => &$limit,
+      'limit' => &$limit,
       'params' => &$params,
     );
+
     if ($this->request_handler) {
       $this->setRequestHandler($this->request_handler, $call_args);
     }
@@ -750,16 +781,16 @@ class SearchApiSolrService extends SearchApiAbstractService {
 
       // Compute performance
       $time_end = microtime(TRUE);
-      $results['performance'] = array(
-        'complete' => $time_end - $time_method_called,
-        'preprocessing' => $time_processing_done - $time_method_called,
-        'execution' => $time_query_done - $time_processing_done,
-        'postprocessing' => $time_end - $time_query_done,
-      );
-
+      if(!$field_collapse) {
+        $results['performance'] = array(
+          'complete' => $time_end - $time_method_called,
+          'preprocessing' => $time_processing_done - $time_method_called,
+          'execution' => $time_query_done - $time_processing_done,
+          'postprocessing' => $time_end - $time_query_done,
+        );
+      }
       return $results;
-    }
-    catch (Exception $e) {
+    } catch (Exception $e) {
       throw new SearchApiException(t('An error occurred while trying to search with Solr: @msg.', array('@msg' => $e->getMessage())));
     }
   }
@@ -783,72 +814,105 @@ class SearchApiSolrService extends SearchApiAbstractService {
 
     // Set up the results array.
     $results = array();
-    $results['results'] = array();
     // In some rare cases (e.g., MLT query with nonexistent ID) the response
     // will be NULL.
-    if (!isset($response->response)) {
+    if (!isset($response->response) && !isset($response->grouped)) {
       $results['result count'] = 0;
       return $results;
     }
-    $results['result count'] = $response->response->numFound;
-
-    // Add each search result to the results array.
-    foreach ($response->response->docs as $doc) {
-      // Blank result array.
-
-      $result = array(
-        'id' => NULL,
-        'score' => NULL,
-        'fields' => array(),
-      );
-
-      if(isset($doc->_dist_)){
-        $cd_dist=$doc->_dist_;
-        $result['dist']=$cd_dist;
-      }
-
-      // Extract properties from the Solr document, translating from Solr to
-      // Search API property names. This reverses the mapping in
-      // SearchApiSolrService::getFieldNames().
-      foreach ($fields as $search_api_property => $solr_property) {
-
-        if (isset($doc->{$solr_property})) {
-          $result['fields'][$search_api_property] = $doc->{$solr_property};
-          // Date fields need some special treatment to become valid date values
-          // (i.e., timestamps) again.
-          if (isset($field_options[$search_api_property]['type'])
-              && $field_options[$search_api_property]['type'] == 'date'
-              && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $result['fields'][$search_api_property])) {
-            $result['fields'][$search_api_property] = strtotime($result['fields'][$search_api_property]);
+    $grouping = $query->getOption('search_api_grouping');
+    if (!empty($response->grouped)) {
+      $results['count'] = 0;
+      foreach ($grouping['fields'] as $field) {
+        if (!empty($response->grouped->{$fields[$field]})) {
+          $results['count'] = $response->grouped->{$fields[$field]}->matches;
+          $results[$fields[$field]] = array();
+          foreach ($response->grouped->{$fields[$field]}->groups as $group) {
+            if($group->groupValue) {
+              $results[$fields[$field]][] = array(
+                'id' => $group->groupValue,
+                'count' =>$group->doclist->numFound
+              );
+            } else {
+              unset($results[$fields[$field]]);
+            }
           }
         }
       }
+      $docs = $results;
+    }
+    else {
+        $results['result count'] = $response->response->numFound;
+        $docs = $response->response->docs;
+    }
+    // Add each search result to the results array.
+    if(empty($response->grouped)) {
+      foreach ($docs as $doc) {
+        // Blank result array.
 
-      // We can find the item id and score in the special 'search_api_*'
-      // properties. Mappings are provided for these properties in
-      // SearchApiSolrService::getFieldNames().
-      $result['id'] = $result['fields']['search_api_item_id'];
-      $result['score'] = $result['fields']['search_api_relevance'];
-      $solr_id = $this->createId($index->machine_name, $result['id']);
-      $excerpt = $this->getExcerpt($response, $solr_id, $result['fields'], $fields);
-      if ($excerpt) {
-        $result['excerpt'] = $excerpt;
+        $result = array(
+          'id' => NULL,
+          'score' => NULL,
+          'fields' => array(),
+        );
+
+        if (isset($doc->_dist_)) {
+          $cd_dist = $doc->_dist_;
+          $result['dist'] = $cd_dist;
+        }
+
+        // Extract properties from the Solr document, translating from Solr to
+        // Search API property names. This reverses the mapping in
+        // SearchApiSolrService::getFieldNames().
+        foreach ($fields as $search_api_property => $solr_property) {
+          if (isset($doc->{$solr_property})) {
+            $result['fields'][$search_api_property] = $doc->{$solr_property};
+            // Date fields need some special treatment to become valid date values
+            // (i.e., timestamps) again.
+            if (isset($field_options[$search_api_property]['type'])
+              && $field_options[$search_api_property]['type'] == 'date'
+              && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $result['fields'][$search_api_property])
+            ) {
+              $result['fields'][$search_api_property] = strtotime($result['fields'][$search_api_property]);
+            }
+          }
+        }
+
+        // We can find the item id and score in the special 'search_api_*'
+        // properties. Mappings are provided for these properties in
+        // SearchApiSolrService::getFieldNames().
+        $result['id'] = $result['fields']['search_api_item_id'];
+        $result['score'] = $result['fields']['search_api_relevance'];
+        $solr_id = $this->createId($index->machine_name, $result['id']);
+        $excerpt = $this->getExcerpt($response, $solr_id, $result['fields'], $fields);
+        if ($excerpt) {
+          $result['excerpt'] = $excerpt;
+        }
+
+        // Use the result's id as the array key. By default, 'id' is mapped to
+        // 'item_id' in SearchApiSolrService::getFieldNames().
+        if ($result['id']) {
+          $results['results'][$result['id']] = $result;
+        }
       }
 
-      // Use the result's id as the array key. By default, 'id' is mapped to
-      // 'item_id' in SearchApiSolrService::getFieldNames().
-      if ($result['id']) {
-        $results['results'][$result['id']] = $result;
+      // Check for spellcheck suggestions.
+      if (module_exists('search_api_spellcheck') && $query->getOption('search_api_spellcheck')) {
+        $results['search_api_spellcheck'] = new SearchApiSpellcheckSolr($response);
       }
     }
-
-    // Check for spellcheck suggestions.
-    if (module_exists('search_api_spellcheck') && $query->getOption('search_api_spellcheck')) {
-      $results['search_api_spellcheck'] = new SearchApiSpellcheckSolr($response);
+    else {
+      foreach ($fields as $search_api_property => $solr_property) {
+        if (isset($results[$solr_property])) {
+          $results[$search_api_property] = $results[$solr_property];
+          unset($results[$solr_property]);
+        }
+      }
     }
-
     return $results;
   }
+
+
 
   /**
    * Extract and format highlighting information for a specific item from a Solr response.
@@ -1107,19 +1171,22 @@ class SearchApiSolrService extends SearchApiAbstractService {
     if ($value === NULL) {
       return ($operator == '=' ? '-' : '') . "$field:[* TO *]";
     }
+
     $value = trim($value);
+//    $value = intval($value);
     $value = $this->formatFilterValue($value, search_api_extract_inner_type($field_info['type']));
     switch ($operator) {
       case '<>':
         return "-($field:$value)";
       case '<':
-        return "$field:{* TO $value}";
+        return "$field:[* TO $value]";
       case '<=':
         return "$field:[* TO $value]";
       case '>=':
         return "$field:[$value TO *]";
       case '>':
-        return "$field:{{$value} TO *}";
+        return "$field:[
+        $value TO *]";
 
       default:
         return "$field:$value";
