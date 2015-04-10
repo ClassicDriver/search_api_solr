@@ -833,8 +833,6 @@ class SearchApiSolrService extends SearchApiAbstractService {
                 'id' => $group->groupValue,
                 'count' =>$group->doclist->numFound
               );
-            } else {
-              unset($results[$fields[$field]]);
             }
           }
         }
