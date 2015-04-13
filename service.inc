@@ -545,7 +545,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
 
     // Get facet fields
-    $facets = $query->getOption('search_api_facets', array());
+    $facets = $query->getOption('search_api_facets') ? $query->getOption('search_api_facets') : array();
     $facet_params = $this->getFacetParams($facets, $fields, $fq);
 
     // Handle highlighting
@@ -1015,9 +1015,9 @@ class SearchApiSolrService extends SearchApiAbstractService {
               elseif ($type == 'date') {
                 $term = isset($term) ? strtotime($term) : NULL;
               }
-              $term = $term === '_empty_' ? '!' : '"' . $term . '"';
-              $facets[$delta][] = array(
-                'filter' => $term,
+//              $term = $term === '_empty_' ? '!' : '"' . $term . '"';
+              $facets[$info['field']][] = array(
+                'id' => $term,
                 'count' => $count,
               );
             }
