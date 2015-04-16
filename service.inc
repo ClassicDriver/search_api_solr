@@ -829,8 +829,13 @@ class SearchApiSolrService extends SearchApiAbstractService {
           $results[$fields[$field]] = array();
           foreach ($response->grouped->{$fields[$field]}->groups as $group) {
             if($group->groupValue) {
+              $value = $group->groupValue;
+              $type = gettype($value);
+              if($type == 'boolean') {
+                $value = intval(strval($value));
+              }
               $results[$fields[$field]][] = array(
-                'id' => $group->groupValue,
+                'id' => $value,
                 'count' =>$group->doclist->numFound
               );
             }
