@@ -707,7 +707,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     if (!empty($spatial_params)) {
       $params += $spatial_params;
     }
-    if (!empty($this->options['retrieve_data'])) {
+    if (!empty($this->options['retrieve_data']) || !empty($options['retrieve_data'])) {
       $params['fl'] = '*,score';
     }
     $call_args = array(
