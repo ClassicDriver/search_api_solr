@@ -737,6 +737,10 @@ class SearchApiSolrService extends SearchApiAbstractService {
     if (!empty($this->options['retrieve_data']) || !empty($options['retrieve_data'])) {
       $params['fl'] = '*,score';
     }
+    if (!empty($this->options['stats']) || !empty($options['stats'])) {
+      $params['stats'] = 'true';
+      $params['stats.field'] = $options['stats'];
+    }
     if (!empty($group_params)) {
       $params += $group_params;
     }
@@ -850,6 +854,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
     else {
         $results['result count'] = $response->response->numFound;
+        $results['stats'] = $response->stats->stats_fields;
         $docs = $response->response->docs;
     }
     // Add each search result to the results array.
