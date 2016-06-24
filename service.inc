@@ -739,6 +739,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
     if (!empty($this->options['stats']) || !empty($options['stats'])) {
       $params['stats'] = 'true';
+      $params['stats.calcdistinct'] = 'true';
       $params['stats.field'] = $options['stats'];
     }
     if (!empty($group_params)) {
