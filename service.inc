@@ -739,8 +739,11 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
     if (!empty($this->options['stats']) || !empty($options['stats'])) {
       $params['stats'] = 'true';
-      $params['stats.calcdistinct'] = 'true';
       $params['stats.field'] = $options['stats'];
+      $params['facet'] = 'true';
+      $params['facet.field'] = 'ss_type';
+      $params['facet.mincount'] = '1';
+      $params['facet.field'] = $options['facet'];
     }
     if (!empty($group_params)) {
       $params += $group_params;
@@ -780,7 +783,6 @@ class SearchApiSolrService extends SearchApiAbstractService {
       if ($facets = $this->extractFacets($query, $response)) {
         $results['search_api_facets'] = $facets;
       }
-
       drupal_alter('search_api_solr_search_results', $results, $query, $response);
       $this->postQuery($results, $query, $response);
 
@@ -856,6 +858,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     else {
         $results['result count'] = $response->response->numFound;
         $results['stats'] = $response->stats->stats_fields;
+        $results['facet_counts'] = $response->facet_counts->facet_fields;
         $docs = $response->response->docs;
     }
     // Add each search result to the results array.
