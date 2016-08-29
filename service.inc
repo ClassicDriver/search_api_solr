@@ -1001,7 +1001,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
       foreach ($extract_facets as $delta => $info) {
         $field = $fields[$info['field']];
         if (!empty($facet_fields->$field)) {
-          $min_count = $info['min_count'];
+          $min_count = isset($info['min_count']) ? $info['min_count'] : 0;
           $terms = $facet_fields->$field;
           if ($info['missing']) {
             // We have to correctly incorporate the "_empty_" term.
