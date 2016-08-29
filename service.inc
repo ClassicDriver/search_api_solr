@@ -1001,7 +1001,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
       foreach ($extract_facets as $delta => $info) {
         $field = $fields[$info['field']];
         if (!empty($facet_fields->$field)) {
-          $min_count = isset($info['min_count']) ? $info['min_count'] : 0;
+          $min_count = isset($info['min_count']) ? $info['min_count'] : 1;
           $terms = $facet_fields->$field;
           if ($info['missing']) {
             // We have to correctly incorporate the "_empty_" term.
@@ -1069,7 +1069,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
           $field = $info['field'];
           if (!empty($queries[$field])) {
             foreach ($queries[$field] as $facet) {
-              if ($facet['count'] >= $info['min_count']) {
+              if ($facet['count'] >= (isset($info['min_count']) ? $info['min_count'] : 1)) {
                 $facets[$delta][] = $facet;
               }
             }
@@ -1246,6 +1246,9 @@ class SearchApiSolrService extends SearchApiAbstractService {
     foreach ($facets as $info) {
       if (empty($fields[$info['field']])) {
         continue;
+      }
+      if (!isset($info['min_count'])) {
+        $info['min_count'] = 1;
       }
       // String fields have their own corresponding facet fields.
       $field = $fields[$info['field']];
@@ -1769,7 +1772,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
         foreach ($facets as $delta => $info) {
           $field = $this->getFacetField($solr_fields[$info['field']]);
           if (!empty($facet_fields->$field)) {
-            $min_count = $info['min_count'];
+            $min_count = isset($info['min_count']) ? $info['min_count'] : 1;
             $terms = $facet_fields->$field;
             if ($info['missing']) {
               // We have to correctly incorporate the "_empty_" term.
