@@ -859,7 +859,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     }
     else {
         $results['result count'] = $response->response->numFound;
-        $results['stats'] = $response->stats->stats_fields;
+        $results['stats'] = isset($response->stats) && isset($response->stats->stats_fields) ? $response->stats->stats_fields : NULL;
         $results['facet_counts'] = isset($response->facet_counts) && isset($response->facet_counts->facet_fields) ? $response->facet_counts->facet_fields : NULL;
         $docs = $response->response->docs;
     }
