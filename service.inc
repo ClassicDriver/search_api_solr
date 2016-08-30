@@ -860,7 +860,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
     else {
         $results['result count'] = $response->response->numFound;
         $results['stats'] = $response->stats->stats_fields;
-        $results['facet_counts'] = $response->facet_counts->facet_fields;
+        $results['facet_counts'] = isset($response->facet_counts) && isset($response->facet_counts->facet_fields) ? $response->facet_counts->facet_fields : NULL;
         $docs = $response->response->docs;
     }
     // Add each search result to the results array.
