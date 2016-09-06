@@ -745,7 +745,7 @@ class SearchApiSolrService extends SearchApiAbstractService {
       $params['facet'] = 'true';
       $params['facet.field'] = 'ss_type';
       $params['facet.mincount'] = '1';
-      $params['facet.field'] = $options['facet'];
+      $params['facet.field'] = (!empty($options['facet']) ? $options['facet'] : NULL);
     }
     if (!empty($group_params)) {
       $params += $group_params;
